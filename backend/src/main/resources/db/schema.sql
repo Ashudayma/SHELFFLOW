@@ -292,3 +292,30 @@ JOIN (VALUES
      ) AS v(sku, aisle, bay, shelf, location_code) ON TRUE
 WHERE w.warehouse_code = 'WH-MAIN'
     ON CONFLICT ON CONSTRAINT uq_shelf_warehouse_sku DO NOTHING;
+
+
+-- Seed shelf locations mapping each product SKU to a physical location in WH-MAIN
+INSERT INTO shelf_locations (warehouse_id, sku, aisle, bay, shelf, location_code)
+SELECT w.id, 'SKU-1001', 'A', '01', '1', 'Aisle_A-Bay_01-Shelf_1'
+FROM warehouses w WHERE w.warehouse_code = 'WH-MAIN'
+ON CONFLICT (warehouse_id, sku) DO NOTHING;
+
+INSERT INTO shelf_locations (warehouse_id, sku, aisle, bay, shelf, location_code)
+SELECT w.id, 'SKU-1002', 'A', '01', '2', 'Aisle_A-Bay_01-Shelf_2'
+FROM warehouses w WHERE w.warehouse_code = 'WH-MAIN'
+ON CONFLICT (warehouse_id, sku) DO NOTHING;
+
+INSERT INTO shelf_locations (warehouse_id, sku, aisle, bay, shelf, location_code)
+SELECT w.id, 'SKU-1003', 'A', '02', '1', 'Aisle_A-Bay_02-Shelf_1'
+FROM warehouses w WHERE w.warehouse_code = 'WH-MAIN'
+ON CONFLICT (warehouse_id, sku) DO NOTHING;
+
+INSERT INTO shelf_locations (warehouse_id, sku, aisle, bay, shelf, location_code)
+SELECT w.id, 'SKU-1004', 'B', '01', '1', 'Aisle_B-Bay_01-Shelf_1'
+FROM warehouses w WHERE w.warehouse_code = 'WH-MAIN'
+ON CONFLICT (warehouse_id, sku) DO NOTHING;
+
+INSERT INTO shelf_locations (warehouse_id, sku, aisle, bay, shelf, location_code)
+SELECT w.id, 'SKU-1005', 'B', '02', '1', 'Aisle_B-Bay_02-Shelf_1'
+FROM warehouses w WHERE w.warehouse_code = 'WH-MAIN'
+ON CONFLICT (warehouse_id, sku) DO NOTHING;

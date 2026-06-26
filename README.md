@@ -8,7 +8,6 @@ app (`/picker/*`).
 backend/            Spring Boot 3 / Java 21 API (PostgreSQL). Build with Maven.
 frontend/           React + TS + MUI SPA — admin console (/admin) + picker UI (/picker).
 docker-compose.yml  Full stack: postgres + backend + frontend.
-.claude/            Project documentation (start with .claude/CLAUDE.md).
 ```
 
 ---
@@ -42,16 +41,28 @@ When it settles you have a fully working, **pre-seeded** app with zero manual st
 ### Seeded demo credentials
 
 | Role           | Email                  | Password     | Scope                          |
-|----------------|------------------------|--------------|--------------------------------|
+|----------------|------------------------|--------------|---------------------------------|
 | Central Admin  | `admin@shelflife.com`  | `Admin@123`  | Global (all warehouses)        |
 | Hub Picker     | `picker@shelflife.com` | `Picker@123` | Warehouses `WH-MAIN`, `WH-NORTH` |
 
 Also seeded: 2 warehouses, 5 products, and their shelf locations in `WH-MAIN` — enough master
-data to upload orders (Admin → Upload Orders) and run the picker flow end-to-end.
+data to upload orders (Admin → Upload Orders) and run the picker flow end-to-end without any
+manual setup.
 
 > **Using Swagger UI with auth:** call `POST /auth/login` with one of the credentials above,
 > copy the `accessToken`, click **Authorize**, and paste it. The protected endpoints are then
 > callable from the UI.
+
+### Trying it end-to-end
+
+A sample order file (`dummy_orders_upload.csv`) is included for convenience — it uses the
+seeded `WH-MAIN` warehouse code and the 5 seeded SKUs, so it uploads cleanly against a fresh
+clone with no edits needed:
+
+1. Log in as **Admin** → **Upload Orders** → upload `dummy_orders_upload.csv`.
+2. Log in as **Picker** → select **WH-MAIN** → claim an order → follow the generated route →
+   simulate scans to complete picking.
+3. Back in **Admin** → **Reports** → view the dispatch report and fulfillment rate.
 
 ### Tear down / reset
 
@@ -84,6 +95,19 @@ The schema is created and demo data seeded on startup by `db/schema.sql` via Spr
 init; Hibernate runs in `validate` mode and never alters the schema. The **frontend** is a
 single Vite + React + MUI SPA; in Docker it is served by nginx, which strips the `/api` prefix
 and proxies to the `backend` service over the Docker network.
+
+### Notable design decisions
+
+- **Optimistic locking on order claims** — `orders.version` ensures two pickers cannot claim
+  the same order; a losing concurrent claim returns `409 Conflict` rather than silently
+  overwriting state.
+- **Service-layer warehouse isolation** — a picker's accessible warehouse IDs come from their
+  JWT claims, never from a client-supplied parameter, so a foreign warehouse's order can't be
+  read or acted on even if its ID is guessed or passed directly.
+- **Async audit trail** — login, logout, scan, skip, and order-completion events are logged via
+  an async listener so audit writes never add latency to the scan-to-pick path.
+- **Location-sorted routing** — when a picker claims an order, items are returned sorted by
+  shelf `location_code`, producing an optimized walk path rather than upload order.
 
 ---
 
@@ -128,7 +152,17 @@ claim / scan / route).
 
 ---
 
-## Docs
-See `.claude/CLAUDE.md` for full project context and `.claude/docs/` for per-feature design
-notes (auth/RBAC, ingestion, picker workflow, scan-to-pick, audit trail, dispatch report,
-frontend).
+## Possible future enhancements
+
+A few ideas beyond the core requirements, noted here for context rather than implemented:
+
+- **Idempotent scan handling** — a client-generated idempotency key on `/scan` to guard against
+  duplicate increments if a rugged handheld device retries a request after a flaky connection.
+- **Partial/short-pick status** — an explicit `SHORT_PICKED` order status with a reason code for
+  out-of-stock scenarios, rather than leaving an order open indefinitely.
+- **Route re-optimization after a skip** — regenerate the remaining route when an item is
+  skipped, instead of only appending it to the end of the original route.
+- **Stale-claim auto-release** — a background job that returns an `ASSIGNED` order to `PENDING`
+  if a picker goes inactive past a timeout, so a dropped device doesn't block an order forever.
+- **Live admin dashboard updates** — push picker progress to the admin console via WebSocket
+  instead of polling.
