@@ -1,0 +1,64 @@
+# ShelfLife full stack — one `docker compose up` from a clean clone yields a working,
+# pre-seeded app with zero manual steps:
+#   - postgres : database with a named volume for persistence + a readiness healthcheck
+#   - backend  : Spring Boot API; on boot db/schema.sql (idempotent) creates the schema and
+#                seeds roles, demo users, warehouses, products and shelf locations
+#   - frontend : React SPA served by nginx, proxying /api -> backend on the docker network
+#
+# URLs (host):  frontend http://localhost:3000   |   Swagger UI http://localhost:8080/swagger-ui.html
+# Demo logins:  admin@shelflife.com / Admin@123   |   picker@shelflife.com / Picker@123
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: shelflife-postgres
+    environment:
+      POSTGRES_DB: shelflife
+      POSTGRES_USER: shelflife
+      POSTGRES_PASSWORD: shelflife
+    volumes:
+      - shelflife-pgdata:/var/lib/postgresql/data
+    ports:
+      # Mapped to a non-default host port to avoid clashing with a local Postgres on 5432/5433.
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U shelflife -d shelflife"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: shelflife-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Override the local-dev defaults in application.yml; the host is the postgres SERVICE name.
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/shelflife
+      SPRING_DATASOURCE_USERNAME: shelflife
+      SPRING_DATASOURCE_PASSWORD: shelflife
+    ports:
+      - "8080:8080"
+    healthcheck:
+      # /v3/api-docs is public (whitelisted) and returns 200 once the app is fully up.
+      test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/v3/api-docs >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: shelflife-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  shelflife-pgdata:

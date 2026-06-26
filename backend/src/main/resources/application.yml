@@ -1,0 +1,48 @@
+spring:
+  application:
+    name: shelflife
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shelflife
+    username: postgres
+    password: "Ashu1234@"
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # The schema is created and seeded by db/schema.sql via spring.sql.init (below),
+      # which runs before Hibernate. Hibernate only validates the mapping, never alters it.
+      ddl-auto: validate
+    # JPA's EntityManagerFactory must be created AFTER the SQL init script has run.
+    # defer-datasource-initialization stays false so schema.sql runs first and `validate` sees the tables.
+    defer-datasource-initialization: false
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: false
+
+  # db/schema.sql is fully idempotent (CREATE ... IF NOT EXISTS / INSERT ... ON CONFLICT
+  # DO NOTHING), so running it on every boot creates the schema and seeds demo data on a
+  # fresh database and is a harmless no-op on an already-provisioned one.
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:db/schema.sql
+
+  # Flyway is intentionally disabled: schema ownership now lives in db/schema.sql, applied
+  # by spring.sql.init above. (The historical migrations under db/migration are unused.)
+  flyway:
+    enabled: false
+
+security:
+  jwt:
+    # Base64-encoded HMAC-SHA256 signing key (>= 256 bits). Override in real environments
+    # via SECURITY_JWT_SECRET. This default decodes to a 57-byte dev-only key.
+    secret: ${SECURITY_JWT_SECRET:c2hlbGZsaWZlLXN1cGVyLXNlY3JldC1rZXktZm9yLWp3dC1obWFjLXNoYTI1Ni0xMjM0NTY3ODkw}
+    access-token-expiration-minutes: 15
+    refresh-token-expiration-days: 7
+    issuer: shelflife
+
+server:
+  port: 8080
